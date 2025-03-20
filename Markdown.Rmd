@@ -1,0 +1,389 @@
+---
+title: "Assignment2"
+author: "Sadiya Ahmad"
+date: "2025-03-19"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r Instal packages}
+install.packages("textshaping")
+install.packages("ragg")
+install.packages("tidyverse", dependencies=TRUE)
+```
+Before you run this markdown file please set up your working directory to the folder where you have all your files for this assignment stored by going to Session->Set working directory->Choose Directory....
+
+
+```{r load data}
+Sys.setenv(R_REMOTES_NO_ERRORS_FROM_WARNINGS="true")
+library(tidyverse)
+fang_et_al_genotypes <- read.delim("fang_et_al_genotypes.txt", sep = "\t", header = TRUE)
+snp_positions <- read.delim("snp_position.txt", sep = "\t", header = TRUE)
+```
+
+```{r Exploring data}
+dim(fang_et_al_genotypes)
+dim(snp_positions)
+object.size(fang_et_al_genotypes)
+object.size(snp_positions)
+```
+
+```{r Exploring data}
+colnames(fang_et_al_genotypes)# columns in fang et al
+head(fang_et_al_genotypes) # rows in fang et al
+colnames(snp_positions) # Columns in snp positions
+head(snp_positions) # Sample rows in snp_positions
+
+```
+
+```{r Extract group}
+# Explore groups in the dataset
+unique(fang_et_al_genotypes$Group)
+head(fang_et_al_genotypes) # rows in fang et al
+table(fang_et_al_genotypes$Group) # Count samples in each group
+```
+
+```{r Maize and teosinte data}
+# Separate the two groups
+# "For maize (Group = ZMMIL, ZMMLR, and ZMMMR in the third column of the fang_et_al_genotypes.txt file)"
+maize_genotypes <- fang_et_al_genotypes %>%
+  filter(Group %in% c("ZMMIL", "ZMMLR", "ZMMMR"))
+
+# "For teosinte (Group = ZMPBA, ZMPIL, and ZMPJA in the third column of the fang_et_al_genotypes.txt file)"
+teosinte_genotypes <- fang_et_al_genotypes %>%
+  filter(Group %in% c("ZMPBA", "ZMPIL", "ZMPJA"))
+```
+
+```{r genotype data for maize transposed}
+
+maize_genotypes_t <- as.data.frame(t(maize_genotypes[, -(1:3)]))
+colnames(maize_genotypes_t) <- maize_genotypes$Sample_ID
+maize_genotypes_t$SNP_ID <- rownames(maize_genotypes_t)
+rownames(maize_genotypes_t) <- NULL
+maize_genotypes_t <- maize_genotypes_t %>%
+  select(SNP_ID, everything())
+```
+
+```{r genotype data for teosinte transposed}
+
+teosinte_genotypes_t <- as.data.frame(t(teosinte_genotypes[, -(1:3)]))
+colnames(teosinte_genotypes_t) <- teosinte_genotypes$Sample_ID
+teosinte_genotypes_t$SNP_ID <- rownames(teosinte_genotypes_t)
+rownames(teosinte_genotypes_t) <- NULL
+teosinte_genotypes_t <- teosinte_genotypes_t %>%
+  select(SNP_ID, everything())
+```
+
+```{r get columns from SNP position data}
+snp_positions_subset <- snp_positions %>%
+  select(SNP_ID, Chromosome, Position)
+```
+
+```{r Joining step}
+# From instructions
+# We will need to join these data sets so that we have both genotypes and positions in a series of input files
+# All our files will be formatted such that the first column is 'SNP_ID', the second column is 'Chromosome', 
+# the third column is 'Position', and subsequent columns are genotype data from either maize or teosinte individuals."
+maize_joined <- maize_genotypes_t %>%
+  inner_join(snp_positions_subset, by = "SNP_ID") %>%
+  select(SNP_ID, Chromosome, Position, everything())
+
+teosinte_joined <- teosinte_genotypes_t %>%
+  inner_join(snp_positions_subset, by = "SNP_ID") %>%
+  select(SNP_ID, Chromosome, Position, everything())
+
+```
+
+```{r Create output folders}
+
+dir.create("r_assign_maize_output", showWarnings = FALSE)
+dir.create("r_assign_teosinte_output", showWarnings = FALSE)
+```
+
+```{r Sorting position}
+
+write_data <- function(data, filename, replace_missing = FALSE) {
+  output_data <- data
+  
+  # must convert "Position" to numeric for sorting
+  if (!is.numeric(output_data$Position)) {
+    output_data$Position <- as.numeric(as.character(output_data$Position))
+  }
+  # Need to replace missing data symbol
+  if (replace_missing) {
+    # indexes of genotype columns (after first 3)
+    genotype_cols <- 4:ncol(output_data)
+    
+    # Replace ? with - in the genotype columns
+    for (col in genotype_cols) {
+      output_data[[col]] <- gsub("\\?", "-", output_data[[col]])
+    }
+  }
+  write.table(output_data, filename, sep = "\t", row.names = FALSE, quote = FALSE)
+}
+```
+
+```{r maize}
+# Instead of a loop, use lapply for each chromosome
+chromosomes <- as.character(1:10)
+```
+
+```{r process each chromosome for a dataset}
+process_chromosome <- function(chr, data, group_name) {
+  # only the data for the current (1:10) chromosome
+  chr_data <- data %>% filter(Chromosome == chr)
+  
+  if (nrow(chr_data) > 0) {
+    # Increasing position file
+    incr_file <- paste0("r_assign_", tolower(group_name), "_output/", 
+                        tolower(group_name), "_chr", chr, "_increasing.txt")
+    incr_data <- chr_data %>% arrange(as.numeric(Position))
+    write_data(incr_data, incr_file)
+    
+    # Decreasing position file and ? replaced by -
+    decr_file <- paste0("r_assign_", tolower(group_name), "_output/", 
+                        tolower(group_name), "_chr", chr, "_decreasing.txt")
+    decr_data <- chr_data %>% arrange(desc(as.numeric(Position)))
+    write_data(decr_data, decr_file, replace_missing = TRUE)
+  }
+}
+```
+
+```{r Instead of nested loop use lapply}
+# lapply for processing maize data
+lapply(chromosomes, process_chromosome, data = maize_joined, group_name = "maize")
+```
+
+```{r Instead of nested loop use lapply}
+# lapply for processing teosinte data
+lapply(chromosomes, process_chromosome, data = teosinte_joined, group_name = "teosinte")
+```
+
+## Including Plots
+
+SNPs per chromosome_
+What is the distribution of SNPs on and across chromosomes?
+Are there more SNP positions in maize or teosinte individuals?
+
+```{r chromosome factor levels for better plotting}
+
+snp_positions$Chromosome <- factor(snp_positions$Chromosome, 
+                                   levels = c(as.character(1:10), "multiple", "unknown"))
+```
+
+```{r count SNPs (per chromosome)by chr)}
+
+snps_per_chr <- snp_positions %>%
+  group_by(Chromosome) %>%
+  summarise(count = n())
+```
+
+```{r plot SNPs by chromosome}
+
+ggplot(snps_per_chr, aes(x = Chromosome, y = count)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  labs(title = "SNPs per Chromosome",
+       x = "Chromosome",
+       y = "Number of SNPs") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+# compare number of SNPs in maize and teosinte
+maize_snps <- maize_joined %>%
+  mutate(Group = "Maize") %>%
+  select(SNP_ID, Chromosome, Group)
+```
+
+
+```{r}
+teosinte_snps <- teosinte_joined %>%
+  mutate(Group = "Teosinte") %>%
+  select(SNP_ID, Chromosome, Group)
+
+```
+
+```{r}
+# combine for comparison
+all_snps <- bind_rows(maize_snps, teosinte_snps)
+
+```
+
+```{r}
+# calculate SNPs by group and chromosome
+snps_by_group <- all_snps %>%
+  group_by(Chromosome, Group) %>%
+  summarise(count = n(), .groups = "drop")
+
+```
+
+```{r}
+# SNP comparison between maize and teosinte
+ggplot(snps_by_group, aes(x = Chromosome, y = count, fill = Group)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_minimal() +
+  labs(title = "SNPs per chromosome by group",
+       x = "Chromosome",
+       y = "Number of SNPs",
+       fill = "Group") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+From instructions:
+Missing data and amount of heterozygosity_
+What is the proportion of homozygous and heterozygous sites as well as missing data in each sample and each group?  
+Hints:
+Create a new column to indicate whether a particular site is homozygous (has the
+same nucleotide on both chromosomes (i.e., A/A, C/C, G/G, T/T) or heterozygous (otherwise)).
+Normalize the height of individual bars using one of the `ggplot` "position adjustments" options.
+
+
+```{r}
+# function to decide if heterozygous, homozygous, or missing
+determine_heterozygosity <- function(genotype) {
+  # Check for missing data
+  if (is.na(genotype) || genotype == "?/?" || genotype == "-/-") {
+    return("missing")
+    # Check for homozygosity (same nucleotide on both chromosomes)
+  } else if (substr(genotype, 1, 1) == substr(genotype, 3, 3)) {
+    return("homozygous")
+    # Otherwise heterozygous
+  } else {
+    return("heterozygous")
+  }
+}
+```
+
+
+```{r}
+maize_long <- maize_joined %>%
+  pivot_longer(cols = -c(SNP_ID, Chromosome, Position), 
+               names_to = "Sample",
+               values_to = "Genotype") %>%
+  mutate(Group = "Maize", 
+         Zygosity = sapply(Genotype, determine_heterozygosity))
+
+teosinte_long <- teosinte_joined %>%
+  pivot_longer(cols = -c(SNP_ID, Chromosome, Position), 
+               names_to = "Sample", 
+               values_to = "Genotype") %>%
+  mutate(Group = "Teosinte", 
+         Zygosity = sapply(Genotype, determine_heterozygosity))
+```
+
+
+```{r}
+# combine
+all_genotypes <- bind_rows(maize_long, teosinte_long)
+
+# heterozygosity by group
+zygosity_by_group <- all_genotypes %>%
+  group_by(Group, Zygosity) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  group_by(Group) %>%
+  mutate(proportion = count / sum(count))
+```
+
+```{r}
+# plot heterozygosity/homozygosity by group
+ggplot(zygosity_by_group, aes(x = Group, y = proportion, fill = Zygosity)) +
+  geom_bar(stat = "identity", position = "stack") +
+  theme_minimal() +
+  labs(title = "Zygosity Proportions by Group",
+       x = "Group",
+       y = "Proportion",
+       fill = "Zygosity") +
+  scale_fill_brewer(palette = "Set2")
+```
+
+```{r}
+# calculate homozygosity/heterozygosity by sample
+zygosity_by_sample <- all_genotypes %>%
+  group_by(Group, Sample, Zygosity) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  group_by(Group, Sample) %>%
+  mutate(proportion = count / sum(count))
+
+```
+
+```{r}
+# plot heterozygosity/homozygosity by sample with position="fill" for normalization
+ggplot(zygosity_by_sample, aes(x = Sample, y = proportion, fill = Zygosity)) +
+  geom_bar(stat = "identity", position = "fill") +
+  facet_wrap(~ Group, scales = "free_x") +
+  theme_minimal() +
+  labs(title = "Zygosity Proportions by Sample",
+       x = "Sample",
+       y = "Proportion",
+       fill = "Zygosity") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 6)) +
+  scale_fill_brewer(palette = "Set2")
+```
+My Visualization
+
+```{r}
+# function for identifing polymorphic SNPs (vary within a group)
+is_polymorphic <- function(genotypes) {
+  # need to remove missing data (otherwise getting error)
+  genotypes <- genotypes[!is.na(genotypes) & genotypes != "?/?"]
+  unique_genotypes <- unique(genotypes)
+  return(length(unique_genotypes) > 1)
+}
+```
+
+```{r}
+# apply to maize
+maize_poly <- data.frame(
+  SNP_ID = maize_joined$SNP_ID,
+  Chromosome = maize_joined$Chromosome,
+  Polymorphic = apply(maize_joined[, -(1:3)], 1, is_polymorphic),
+  Group = "Maize"
+)
+```
+
+```{r}
+# apply to teosinte
+teosinte_poly <- data.frame(
+  SNP_ID = teosinte_joined$SNP_ID,
+  Chromosome = teosinte_joined$Chromosome,
+  Polymorphic = apply(teosinte_joined[, -(1:3)], 1, is_polymorphic),
+  Group = "Teosinte"
+)
+```
+
+```{r}
+# combine and count polymorphic SNPs
+poly_data <- bind_rows(maize_poly, teosinte_poly) %>%
+  filter(Polymorphic == TRUE) %>%
+  group_by(Chromosome, Group) %>%
+  summarise(count = n(), .groups = "drop")
+```
+
+```{r}
+# plot polymorphic SNPs
+ggplot(poly_data, aes(x = Chromosome, y = count, fill = Group)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_minimal() +
+  labs(title = "Polymorphic SNPs per chromosome by group",
+       subtitle = "Shows SNPs that vary within each group",
+       x = "Chromosome", 
+       y = "Number of Polymorphic SNPs",
+       fill = "Group") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
