@@ -54,14 +54,15 @@ unique(fang_et_al_genotypes$Group)
 head(fang_et_al_genotypes) # rows in fang et al
 table(fang_et_al_genotypes$Group) # Count samples in each group
 ```
-
-```{r Maize and teosinte data}
 # Separate the two groups
 # "For maize (Group = ZMMIL, ZMMLR, and ZMMMR in the third column of the fang_et_al_genotypes.txt file)"
+# "For teosinte (Group = ZMPBA, ZMPIL, and ZMPJA in the third column of the fang_et_al_genotypes.txt file)"
+```{r Maize and teosinte data}
+
 maize_genotypes <- fang_et_al_genotypes %>%
   filter(Group %in% c("ZMMIL", "ZMMLR", "ZMMMR"))
 
-# "For teosinte (Group = ZMPBA, ZMPIL, and ZMPJA in the third column of the fang_et_al_genotypes.txt file)"
+
 teosinte_genotypes <- fang_et_al_genotypes %>%
   filter(Group %in% c("ZMPBA", "ZMPIL", "ZMPJA"))
 ```
@@ -90,12 +91,12 @@ teosinte_genotypes_t <- teosinte_genotypes_t %>%
 snp_positions_subset <- snp_positions %>%
   select(SNP_ID, Chromosome, Position)
 ```
-
-```{r Joining step}
 # From instructions
 # We will need to join these data sets so that we have both genotypes and positions in a series of input files
 # All our files will be formatted such that the first column is 'SNP_ID', the second column is 'Chromosome', 
 # the third column is 'Position', and subsequent columns are genotype data from either maize or teosinte individuals."
+```{r Joining step}
+
 maize_joined <- maize_genotypes_t %>%
   inner_join(snp_positions_subset, by = "SNP_ID") %>%
   select(SNP_ID, Chromosome, Position, everything())
@@ -180,7 +181,7 @@ Are there more SNP positions in maize or teosinte individuals?
 ```{r chromosome factor levels for better plotting}
 
 snp_positions$Chromosome <- factor(snp_positions$Chromosome, 
-                                   levels = c(as.character(1:10), "multiple", "unknown"))
+                                   levels = c(as.numeric(as.character(1:10), "multiple", "unknown")))
 ```
 
 ```{r count SNPs (per chromosome)by chr)}
@@ -201,8 +202,10 @@ ggplot(snps_per_chr, aes(x = Chromosome, y = count)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
-```{r}
 # compare number of SNPs in maize and teosinte
+
+```{r}
+
 maize_snps <- maize_joined %>%
   mutate(Group = "Maize") %>%
   select(SNP_ID, Chromosome, Group)
@@ -216,22 +219,32 @@ teosinte_snps <- teosinte_joined %>%
 
 ```
 
-```{r}
 # combine for comparison
+
+```{r}
+
 all_snps <- bind_rows(maize_snps, teosinte_snps)
 
 ```
 
-```{r}
 # calculate SNPs by group and chromosome
+
+```{r}
+
 snps_by_group <- all_snps %>%
   group_by(Chromosome, Group) %>%
   summarise(count = n(), .groups = "drop")
 
 ```
 
-```{r}
 # SNP comparison between maize and teosinte
+
+```{r}
+
+snps_by_group$Chromosome <- factor(snps_by_group$Chromosome, 
+                                   levels = sort(unique(as.numeric(as.character(snps_by_group$Chromosome)))))
+
+
 ggplot(snps_by_group, aes(x = Chromosome, y = count, fill = Group)) +
   geom_bar(stat = "identity", position = "dodge") +
   theme_minimal() +
