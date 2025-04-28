@@ -1,0 +1,26 @@
+I was able to clone your repository and run the Rmd file easily.
+the outcome files were correct. 
+also plots are generated perfectly. The only problem about plots is that 10 is after 1 not after 9.
+you can use this code to address the problem:
+
+# calculate SNPs by group and chromosome
+snps_by_group <- all_snps %>%
+  group_by(Chromosome, Group) %>%
+  summarise(count = n(), .groups = "drop")
+
+```
+
+```{r}
+# Ensure chromosomes are ordered correctly
+snps_by_group$Chromosome <- factor(snps_by_group$Chromosome, 
+                                   levels = as.character(1:10))
+
+# SNP comparison between maize and teosinte
+ggplot(snps_by_group, aes(x = Chromosome, y = count, fill = Group)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_minimal() +
+  labs(title = "SNPs per chromosome by group",
+       x = "Chromosome",
+       y = "Number of SNPs",
+       fill = "Group") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
