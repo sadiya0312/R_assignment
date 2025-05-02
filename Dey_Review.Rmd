@@ -1,0 +1,42 @@
+---
+title: "Dey_Review"
+author: "Sristi Dey"
+date: "2025-03-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```  
+
+##Review of Sadiya_markdown.Rmd by Sristi Dey
+
+Hi Sadiya, 
+I found an error while running your markdown file in line 32 (could not open the connection to fang_et_al_genotypes) ```fang_et_al_genotypes <- read.delim("fang_et_al_genotypes.txt", sep = "\t", header = TRUE)```
+The error did not allow me to run the markdown file ahead anymore
+
+I suggest you to load the file directly in Rstudio and then read it into the data frame, for example:
+```{r load data}
+url_genotypes <- "https://raw.githubusercontent.com/EEOB-BioData/BCB546_Spring2024/refs/heads/main/assignments/UNIX_Assignment/fang_et_al_genotypes.txt"
+genotypes <- read.table(url_genotypes, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+```
+
+##Plots
+#Plot 1&4 - SNPs per chromosome by group/Polymorphic SNPs per chromosome by group
+For this plot it would be better to read the chromosomes in order in the x-axis, below code can help you order them from 1-10, then the non-numeric chromosomes
+```{r sort  using factor}
+your merged maize data$Chromosome <- factor(your merged maize data$Chromosome, 
+    levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "multiple", "unknown"))
+```
+
+#Plot 3
+For the zygosity plots, you may want to remove the x axis text to make the plots cleaner as there's so many samples - you can use theme(axis.text.x=element_blank())
+
+#Overview
+The README file is clear, but a few sections could use more examples
+The code is well-organized, but some functions might need more focus to remove errors, overall excellently done
+ 
+
+
+
+
